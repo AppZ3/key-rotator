@@ -1,0 +1,90 @@
+# key-rotator config
+# Copy to: ~/.config/key-rotator/config.yaml
+
+keys:
+
+  # ── Example 1: Resend API key (programmatic rotation via Resend API) ──────
+  - id: resend_outreach
+    provider:
+      type: resend
+      name: "outreach-tool-rotated"
+      permission: full_access
+    stores:
+      - type: dotenv
+        path: /home/z/Projects/outreach-tool/.env
+        var: RESEND_API_KEY
+      - type: vercel
+        project: outreach-tool-navy
+        var: RESEND_API_KEY
+        env: production
+    health_check:
+      url: https://api.resend.com/domains
+      method: GET
+      expected_status: 200
+      auth_header: Authorization
+      auth_header_value: "Bearer {key}"
+    schedule: "0 3 1 * *"   # 3am UTC on the 1st of every month
+
+  # ── Example 2: Stripe restricted key ─────────────────────────────────────
+  - id: stripe_outreach
+    provider:
+      type: stripe
+      name: "outreach-rotated"
+      permissions:
+        - "charges:read"
+        - "customers:read"
+    stores:
+      - type: dotenv
+        path: /home/z/Projects/outreach-tool/.env
+        var: STRIPE_SECRET_KEY
+      - type: vercel
+        project: outreach-tool-navy
+        var: STRIPE_SECRET_KEY
+        env: production
+    health_check:
+      url: https://api.stripe.com/v1/customers?limit=1
+      method: GET
+      expected_status: 200
+      auth_header: Authorization
+      auth_header_value: "Bearer {key}"
+    schedule: "0 3 15 * *"  # 3am UTC on the 15th of every month
+
+  # ── Example 3: Any service via a custom shell script ──────────────────────
+  # Script prints the new API key to stdout. Store however you like.
+  - id: anthropic_main
+    provider:
+      type: script
+      # Script must output ONLY the new key value on stdout
+      generate_script: /home/z/.config/key-rotator/scripts/gen-anthropic.sh
+      # Optional: called after health check passes to revoke old key
+      revoke_script: /home/z/.config/key-rotator/scripts/revoke-anthropic.sh
+    stores:
+      - type: dotenv
+        path: /home/z/Projects/instagram-bot/.env
+        var: ANTHROPIC_API_KEY
+      - type: system_env
+        var: ANTHROPIC_API_KEY
+        # Written to ~/.config/key-rotator/env.sh (add `source` to ~/.bashrc)
+    health_check:
+      url: https://api.anthropic.com/v1/models
+      method: GET
+      expected_status: 200
+      auth_header: x-api-key
+      auth_header_value: "{key}"
+    schedule: "0 3 1 */2 *"  # every 2 months
+
+  # ── Example 4: No schedule — manual rotation only (no schedule field) ─────
+  - id: supabase_service_role
+    provider:
+      type: script
+      generate_script: /home/z/.config/key-rotator/scripts/gen-supabase.sh
+    stores:
+      - type: dotenv
+        path: /home/z/Projects/outreach-tool/.env
+        var: SUPABASE_SERVICE_ROLE_KEY
+      - type: vercel
+        project: outreach-tool-navy
+        var: SUPABASE_SERVICE_ROLE_KEY
+        env: production
+    # No health_check: just rotates and writes, no verification step
+    # No schedule: rotate manually with `key-rotator rotate supabase_service_role`

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+*.spec.bak
+
+# PyInstaller build artifacts
+build/
+dist/
+*.pkg
+
+# Config & secrets (never commit these)
+config.yaml
+*.env
+secrets.enc
+
+# OS
+.DS_Store
+Thumbs.db

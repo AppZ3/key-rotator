@@ -1,0 +1,107 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"          # triggers on v0.1.0, v1.0.0, etc.
+
+permissions:
+  contents: write     # needed to create GitHub releases
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: key-rotator-linux
+            binary: dist/key-rotator
+
+          - os: macos-latest
+            artifact: key-rotator-mac
+            binary: dist/key-rotator
+
+          - os: windows-latest
+            artifact: key-rotator-windows.exe
+            binary: dist/key-rotator.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Build executable
+        run: uv run pyinstaller key-rotator.spec --clean
+
+      - name: Rename binary (Linux/Mac)
+        if: runner.os != 'Windows'
+        run: mv ${{ matrix.binary }} dist/${{ matrix.artifact }}
+
+      - name: Rename binary (Windows)
+        if: runner.os == 'Windows'
+        run: Rename-Item ${{ matrix.binary }} ${{ matrix.artifact }}
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Key Rotator ${{ github.ref_name }}"
+          body: |
+            ## Download
+
+            | Platform | File |
+            |----------|------|
+            | Windows  | `key-rotator-windows.exe` |
+            | macOS    | `key-rotator-mac` |
+            | Linux    | `key-rotator-linux` |
+
+            ## First run
+
+            **Windows:** Double-click `key-rotator-windows.exe` — browser opens automatically.
+
+            **macOS:**
+            ```bash
+            chmod +x key-rotator-mac && ./key-rotator-mac
+            ```
+
+            **Linux:**
+            ```bash
+            chmod +x key-rotator-linux && ./key-rotator-linux
+            ```
+
+            The PWA opens at `http://127.0.0.1:7821` with the token pre-filled in the URL.
+          files: |
+            artifacts/key-rotator-linux/key-rotator-linux
+            artifacts/key-rotator-mac/key-rotator-mac
+            artifacts/key-rotator-windows.exe/key-rotator-windows.exe
+          draft: false
+          prerelease: false

@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>Key Rotator</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #111827;
+      --surface: #1f2937;
+      --surface2: #374151;
+      --border: #374151;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    header svg { flex-shrink: 0; }
+
+    header h1 { font-size: 16px; font-weight: 600; }
+
+    .scheduler-badge {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--surface2);
+    }
+    .dot.active { background: var(--green); }
+    .dot.inactive { background: var(--red); }
+
+    main { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .toolbar h2 { font-size: 18px; font-weight: 600; flex: 1; }
+
+    button {
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 7px 14px;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--text);
+    }
+    .btn-ghost:hover:not(:disabled) { background: #4b5563; }
+
+    .btn-danger { background: #7f1d1d; color: #fca5a5; }
+    .btn-danger:hover:not(:disabled) { background: #991b1b; }
+
+    .btn-warn { background: #78350f; color: #fcd34d; }
+    .btn-warn:hover:not(:disabled) { background: #92400e; }
+
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    .keys-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .key-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+    }
+
+    .key-card.pending { border-color: var(--yellow); }
+    .key-card.rotating { border-color: var(--accent); }
+
+    .key-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .key-id {
+      font-weight: 600;
+      font-size: 15px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      flex: 1;
+      word-break: break-all;
+    }
+
+    .key-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .tag {
+      background: var(--surface2);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: monospace;
+    }
+
+    .tag.provider { color: #a5b4fc; }
+    .tag.schedule { color: #6ee7b7; }
+
+    .key-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Log panel */
+    .log-panel {
+      margin-top: 14px;
+      background: #0d1117;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .log-panel-header {
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .log-body {
+      padding: 10px 12px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .log-line { margin-bottom: 2px; }
+    .log-line.info { color: #9ca3af; }
+    .log-line.warn { color: var(--yellow); }
+    .log-line.error { color: var(--red); }
+    .log-line.success { color: var(--green); }
+
+    /* Pending fix options */
+    .fix-options {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: #1c1008;
+      border: 1px solid #78350f;
+      border-radius: 6px;
+    }
+
+    .fix-options p {
+      font-size: 12px;
+      color: #fcd34d;
+      margin-bottom: 10px;
+    }
+
+    .fix-options .fix-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Auth overlay */
+    #auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #auth-overlay.hidden { display: none; }
+
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .auth-card h2 { font-size: 18px; margin-bottom: 8px; }
+    .auth-card p { color: var(--muted); font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
+
+    .auth-card code {
+      background: var(--surface2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 10px 12px;
+      outline: none;
+      margin-bottom: 12px;
+    }
+
+    input:focus { border-color: var(--accent); }
+
+    .spinner {
+      width: 12px; height: 12px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    .empty-state p { margin-top: 8px; font-size: 13px; }
+
+    /* Onboarding panel */
+    .onboarding {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .onboarding h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .onboarding p {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .onboarding textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+      resize: vertical;
+      min-height: 100px;
+      font-family: inherit;
+      line-height: 1.5;
+    }
+
+    .onboarding textarea:focus { border-color: var(--accent); }
+
+    .onboarding-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    /* Suggestion cards */
+    .suggestion-list {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .suggestion-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .suggestion-card.skipped {
+      border-color: #4b5563;
+      opacity: 0.7;
+    }
+
+    .suggestion-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .suggestion-header strong { font-size: 14px; font-family: monospace; }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    .badge.auto { background: #064e3b; color: #6ee7b7; }
+    .badge.manual { background: #1c1917; color: #a8a29e; }
+    .badge.skip { background: #1f2937; color: #6b7280; }
+
+    .suggestion-note {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: monospace;
+      background: #0d1117;
+      padding: 6px 10px;
+      border-radius: 4px;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .suggestion-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .collapse-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+      margin-left: auto;
+    }
+
+    .collapse-btn:hover { color: var(--text); }
+
+    /* Set-value inline form */
+    .set-value-panel {
+      margin-top: 12px;
+      padding: 14px;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .set-value-panel label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .input-row input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 8px 10px;
+      outline: none;
+      font-family: "SF Mono", "Fira Code", monospace;
+    }
+
+    .input-row input:focus { border-color: var(--accent); }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .checkbox-row input[type=checkbox] { accent-color: var(--accent); }
+
+    /* Old key panel */
+    .old-key-panel {
+      margin-top: 12px;
+      padding: 14px;
+      background: #0d1117;
+      border: 1px solid #4b5563;
+      border-radius: 6px;
+    }
+
+    .old-key-panel .panel-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .key-preview {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 12px;
+      background: var(--surface2);
+      padding: 6px 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      word-break: break-all;
+      color: #d1d5db;
+    }
+
+    .old-key-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .console-link {
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+      margin-left: auto;
+    }
+
+    .console-link:hover { color: var(--accent-hover); text-decoration: underline; }
+
+    .manual-badge {
+      font-size: 11px;
+      background: #1e1b4b;
+      color: #a5b4fc;
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+<div id="auth-overlay">
+  <div class="auth-card">
+    <h2>Key Rotator</h2>
+    <p>
+      Enter your API token. Get it by running:<br>
+      <code>key-rotator serve --show-token</code>
+    </p>
+    <input type="password" id="token-input" placeholder="Paste token here" autocomplete="off">
+    <button class="btn-primary" style="width:100%" onclick="submitToken()">Connect</button>
+    <p id="auth-error" style="color:var(--red);margin-top:10px;display:none"></p>
+  </div>
+</div>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 512 512" fill="none">
+    <circle cx="184" cy="220" r="72" stroke="#6366f1" stroke-width="40"/>
+    <line x1="232" y1="252" x2="380" y2="340" stroke="#6366f1" stroke-width="40" stroke-linecap="round"/>
+    <line x1="340" y1="320" x2="340" y2="360" stroke="#6366f1" stroke-width="32" stroke-linecap="round"/>
+    <line x1="376" y1="344" x2="376" y2="384" stroke="#6366f1" stroke-width="32" stroke-linecap="round"/>
+  </svg>
+  <h1>Key Rotator</h1>
+  <div class="scheduler-badge">
+    <div class="dot" id="scheduler-dot"></div>
+    <span id="scheduler-label">checking...</span>
+  </div>
+</header>
+
+<main>
+  <!-- Onboarding panel -->
+  <div class="onboarding" id="onboarding-panel">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <h3>What do you use?</h3>
+      <button class="collapse-btn" onclick="toggleOnboarding()">hide ✕</button>
+    </div>
+    <p>Describe your stack and we'll suggest which keys to rotate and auto-fill the config. Be as vague or specific as you like — service names, URLs, project names all help.</p>
+    <textarea id="stack-input" placeholder="e.g. I use Resend for email, Stripe for payments, Anthropic for AI, hosted on Vercel. My Vercel project is called my-app-prod."></textarea>
+    <div class="onboarding-actions">
+      <button class="btn-primary btn-sm" onclick="parseStack()">Analyse stack</button>
+      <span id="parse-status" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div id="suggestions"></div>
+  </div>
+
+  <div class="toolbar">
+    <h2>Keys</h2>
+    <button class="btn-ghost btn-sm" onclick="loadKeys()">↻ Refresh</button>
+    <button class="btn-ghost btn-sm" onclick="showOnboarding()" id="add-btn" style="display:none">+ Add keys</button>
+    <button class="btn-primary btn-sm" onclick="rotateAll()">Rotate All</button>
+  </div>
+  <div class="keys-grid" id="keys-grid">
+    <div class="empty-state">
+      <span style="font-size:32px">🔑</span>
+      <p>Loading keys...</p>
+    </div>
+  </div>
+</main>
+
+<script>
+const BASE = window.location.origin;
+let TOKEN = localStorage.getItem("kr-token") || "";
+
+// Auto-populate token from URL param (from `key-rotator serve --show-token`)
+const urlToken = new URLSearchParams(location.search).get("token");
+if (urlToken) {
+  TOKEN = urlToken;
+  localStorage.setItem("kr-token", TOKEN);
+  history.replaceState({}, "", "/");
+}
+
+// State per key: "idle" | "rotating" | "done"
+const keyState = {};
+
+async function api(method, path, body) {
+  const res = await fetch(BASE + path, {
+    method,
+    headers: {
+      "Authorization": `Bearer ${TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) { showAuth(); return null; }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+async function submitToken() {
+  const input = document.getElementById("token-input");
+  TOKEN = input.value.trim();
+  try {
+    await api("GET", "/api/keys");
+    localStorage.setItem("kr-token", TOKEN);
+    document.getElementById("auth-overlay").classList.add("hidden");
+    init();
+  } catch (e) {
+    document.getElementById("auth-error").textContent = "Invalid token";
+    document.getElementById("auth-error").style.display = "block";
+  }
+}
+
+function showAuth() {
+  document.getElementById("auth-overlay").classList.remove("hidden");
+}
+
+// ── Scheduler status ──────────────────────────────────────────────────────────
+
+async function pollScheduler() {
+  try {
+    const { status } = await api("GET", "/api/scheduler");
+    const dot = document.getElementById("scheduler-dot");
+    const label = document.getElementById("scheduler-label");
+    dot.className = "dot " + (status === "active" ? "active" : "inactive");
+    label.textContent = "Scheduler: " + status;
+  } catch {}
+}
+
+// ── Key cards ─────────────────────────────────────────────────────────────────
+
+async function loadKeys() {
+  const data = await api("GET", "/api/keys");
+  if (!data) return;
+  const grid = document.getElementById("keys-grid");
+
+  if (data.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><span style="font-size:32px">🔑</span><p>No keys configured yet — use the panel above to get started.</p></div>`;
+    return;
+  }
+
+  // Hide onboarding once keys are configured, show "+ Add keys" button instead
+  document.getElementById("onboarding-panel").style.display = "none";
+  document.getElementById("add-btn").style.display = "";
+
+  grid.innerHTML = "";
+  for (const key of data) {
+    grid.appendChild(buildCard(key));
+  }
+}
+
+function buildCard(key) {
+  const card = document.createElement("div");
+  card.className = "key-card" + (key.pending_failure ? " pending" : "");
+  card.id = `card-${key.id}`;
+
+  const stores = key.stores.join(", ");
+  const schedule = key.schedule || "manual";
+  const isManual = key.is_manual;
+
+  card.innerHTML = `
+    <div class="key-header">
+      <div class="key-id">${esc(key.id)}</div>
+    </div>
+    <div class="key-meta">
+      <span class="tag provider">${esc(key.provider || "—")}</span>
+      <span class="tag schedule">⏱ ${esc(schedule)}</span>
+      <span class="tag">${esc(stores)}</span>
+      ${key.has_health_check ? '<span class="tag">✓ health check</span>' : ""}
+      ${isManual ? '<span class="manual-badge">manual</span>' : ""}
+    </div>
+    <div class="key-actions" id="actions-${key.id}">
+      ${isManual
+        ? `<button class="btn-primary btn-sm" onclick="openSetValue('${esc(key.id)}')">Set new key</button>
+           <button class="btn-ghost btn-sm" onclick="rotateKey('${esc(key.id)}', false)">Run script</button>`
+        : `<button class="btn-primary btn-sm" onclick="rotateKey('${esc(key.id)}', false)">Rotate</button>
+           <button class="btn-ghost btn-sm" onclick="openSetValue('${esc(key.id)}')">Set new key</button>`
+      }
+      <button class="btn-ghost btn-sm" onclick="rotateKey('${esc(key.id)}', true)">Dry Run</button>
+      <button class="btn-ghost btn-sm" onclick="restoreKey('${esc(key.id)}')">Restore</button>
+      ${key.has_backup
+        ? `<button class="btn-warn btn-sm" onclick="openOldKey('${esc(key.id)}')">Old key ●</button>`
+        : `<button class="btn-ghost btn-sm" id="old-key-btn-${esc(key.id)}" onclick="openOldKey('${esc(key.id)}')" style="display:none">Old key ●</button>`
+      }
+    </div>
+    <div id="set-value-${key.id}" style="display:none"></div>
+    <div id="old-key-${key.id}" style="display:none"></div>
+    <div id="log-${key.id}" style="display:none"></div>
+    ${key.pending_failure ? buildFixOptions(key.id) : ""}
+  `;
+  return card;
+}
+
+function buildFixOptions(keyId) {
+  return `
+    <div class="fix-options" id="fix-${keyId}">
+      <p>⚠ Health check failed — old key restored. New key was generated but not activated.</p>
+      <div class="fix-buttons">
+        <button class="btn-warn btn-sm" onclick="resolvePending('${esc(keyId)}', 'force_write')">Force activate new key</button>
+        <button class="btn-danger btn-sm" onclick="resolvePending('${esc(keyId)}', 'revoke_new')">Revoke new key</button>
+        <button class="btn-ghost btn-sm" onclick="resolvePending('${esc(keyId)}', 'dismiss')">Dismiss</button>
+      </div>
+    </div>`;
+}
+
+// ── Rotation via WebSocket ────────────────────────────────────────────────────
+
+function rotateKey(keyId, dryRun) {
+  const card = document.getElementById(`card-${keyId}`);
+  const logContainer = document.getElementById(`log-${keyId}`);
+
+  card.classList.add("rotating");
+  setActionsDisabled(keyId, true);
+
+  // Build log panel
+  logContainer.style.display = "block";
+  logContainer.innerHTML = `
+    <div class="log-panel">
+      <div class="log-panel-header">
+        <span class="spinner"></span>
+        ${dryRun ? "Dry run" : "Rotating"}&hellip;
+      </div>
+      <div class="log-body" id="log-body-${keyId}"></div>
+    </div>`;
+
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${proto}//${location.host}/ws/rotate/${keyId}?token=${TOKEN}`);
+
+  ws.onopen = () => ws.send(JSON.stringify({ dry_run: dryRun }));
+
+  ws.onmessage = ({ data }) => {
+    const event = JSON.parse(data);
+    if (event.type === "done") {
+      ws.close();
+      onRotationDone(keyId, event.success, event.has_pending);
+      return;
+    }
+    appendLog(keyId, event);
+  };
+
+  ws.onerror = () => appendLog(keyId, { type: "error", msg: "WebSocket connection failed" });
+  ws.onclose = () => {
+    card.classList.remove("rotating");
+    const header = logContainer.querySelector(".log-panel-header");
+    if (header) header.innerHTML = "Output";
+  };
+}
+
+function appendLog(keyId, event) {
+  const body = document.getElementById(`log-body-${keyId}`);
+  if (!body) return;
+  const line = document.createElement("div");
+  line.className = `log-line ${event.type || "info"}`;
+  const prefix = event.type === "error" ? "[FAIL] " : event.type === "warn" ? "[WARN] " : event.type === "success" ? "[OK] " : "";
+  line.textContent = prefix + (event.msg || "");
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+}
+
+function onRotationDone(keyId, success, hasPending) {
+  setActionsDisabled(keyId, false);
+  const card = document.getElementById(`card-${keyId}`);
+  card.classList.remove("rotating");
+
+  // Remove old fix options if any
+  const oldFix = document.getElementById(`fix-${keyId}`);
+  if (oldFix) oldFix.remove();
+
+  if (hasPending) {
+    card.classList.add("pending");
+    card.insertAdjacentHTML("beforeend", buildFixOptions(keyId));
+  } else {
+    card.classList.remove("pending");
+  }
+}
+
+async function rotateAll() {
+  const cards = document.querySelectorAll(".key-card");
+  for (const card of cards) {
+    const keyId = card.id.replace("card-", "");
+    rotateKey(keyId, false);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+// ── Fix pending failures ──────────────────────────────────────────────────────
+
+async function resolvePending(keyId, action) {
+  try {
+    await api("POST", `/api/keys/${keyId}/pending/resolve`, { action });
+    const card = document.getElementById(`card-${keyId}`);
+    card.classList.remove("pending");
+    document.getElementById(`fix-${keyId}`)?.remove();
+    appendLog(keyId, { type: "success", msg: `Action '${action}' completed` });
+  } catch (e) {
+    appendLog(keyId, { type: "error", msg: e.message });
+  }
+}
+
+async function restoreKey(keyId) {
+  try {
+    const data = await api("POST", `/api/keys/${keyId}/restore`);
+    const failed = data.results.filter(r => !r.ok);
+    if (failed.length) {
+      appendLog(keyId, { type: "warn", msg: `Restored with errors: ${failed.map(r => r.error).join(", ")}` });
+    } else {
+      appendLog(keyId, { type: "success", msg: "Old key restored to all stores" });
+    }
+    showLogPanel(keyId);
+  } catch (e) {
+    alert("Restore failed: " + e.message);
+  }
+}
+
+function showLogPanel(keyId) {
+  const logContainer = document.getElementById(`log-${keyId}`);
+  if (logContainer.style.display === "none") {
+    logContainer.style.display = "block";
+    logContainer.innerHTML = `
+      <div class="log-panel">
+        <div class="log-panel-header">Output</div>
+        <div class="log-body" id="log-body-${keyId}"></div>
+      </div>`;
+  }
+}
+
+function setActionsDisabled(keyId, disabled) {
+  const actions = document.getElementById(`actions-${keyId}`);
+  if (!actions) return;
+  actions.querySelectorAll("button").forEach(b => b.disabled = disabled);
+}
+
+function esc(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ── Set new key ───────────────────────────────────────────────────────────────
+
+function openSetValue(keyId) {
+  const panel = document.getElementById(`set-value-${keyId}`);
+  if (panel.style.display !== "none") {
+    panel.style.display = "none";
+    return;
+  }
+
+  // Find whether this key has a health check (from the card data attr)
+  const card = document.getElementById(`card-${keyId}`);
+  const hasHealthCheck = card.querySelector('.tag') && card.innerHTML.includes("✓ health check");
+
+  panel.style.display = "block";
+  panel.innerHTML = `
+    <div class="set-value-panel">
+      <label>New key value</label>
+      <div class="input-row">
+        <input type="password" id="new-key-input-${esc(keyId)}" placeholder="Paste new key here" autocomplete="off" spellcheck="false">
+        <button class="btn-ghost btn-sm" onclick="toggleKeyVisibility('${esc(keyId)}')">Show</button>
+      </div>
+      ${hasHealthCheck ? `
+      <div class="checkbox-row">
+        <input type="checkbox" id="hc-check-${esc(keyId)}" checked>
+        <label for="hc-check-${esc(keyId)}">Run health check before writing to stores</label>
+      </div>` : ""}
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary btn-sm" onclick="submitSetValue('${esc(keyId)}')">Save to all stores</button>
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('set-value-${esc(keyId)}').style.display='none'">Cancel</button>
+      </div>
+      <div id="set-value-result-${esc(keyId)}" style="margin-top:8px;font-size:12px"></div>
+    </div>`;
+}
+
+function toggleKeyVisibility(keyId) {
+  const input = document.getElementById(`new-key-input-${keyId}`);
+  const btn = input.nextElementSibling;
+  if (input.type === "password") {
+    input.type = "text";
+    btn.textContent = "Hide";
+  } else {
+    input.type = "password";
+    btn.textContent = "Show";
+  }
+}
+
+async function submitSetValue(keyId) {
+  const input = document.getElementById(`new-key-input-${keyId}`);
+  const value = input.value.trim();
+  if (!value) {
+    input.focus();
+    return;
+  }
+
+  const hcCheckbox = document.getElementById(`hc-check-${keyId}`);
+  const run_health_check = hcCheckbox ? hcCheckbox.checked : false;
+  const resultEl = document.getElementById(`set-value-result-${keyId}`);
+
+  resultEl.textContent = "Saving…";
+  resultEl.style.color = "var(--muted)";
+
+  try {
+    const data = await api("POST", `/api/keys/${keyId}/set-value`, { value, run_health_check });
+    if (!data) return;
+
+    const failed = data.results.filter(r => !r.ok);
+    if (failed.length) {
+      resultEl.textContent = `⚠ Written with errors: ${failed.map(r => r.error).join(", ")}`;
+      resultEl.style.color = "var(--yellow)";
+    } else {
+      resultEl.textContent = `✓ Saved to ${data.results.length} store(s)`;
+      resultEl.style.color = "var(--green)";
+    }
+
+    input.value = "";
+
+    // Show "Old key" button if there was a previous value
+    if (data.had_old_value) {
+      const btn = document.getElementById(`old-key-btn-${keyId}`);
+      if (btn) {
+        btn.style.display = "";
+        btn.className = "btn-warn btn-sm";
+      }
+    }
+  } catch (e) {
+    resultEl.textContent = "✗ " + e.message;
+    resultEl.style.color = "var(--red)";
+  }
+}
+
+// ── Old key ───────────────────────────────────────────────────────────────────
+
+// Console URLs per provider (for manual revocation links)
+const CONSOLE_URLS = {
+  resend: "https://resend.com/api-keys",
+  stripe: "https://dashboard.stripe.com/apikeys",
+  script: null,  // resolved per-key below
+};
+
+const ANTHROPIC_CONSOLE = "https://console.anthropic.com/settings/keys";
+const GITHUB_CONSOLE    = "https://github.com/settings/tokens";
+const OPENAI_CONSOLE    = "https://platform.openai.com/api-keys";
+
+async function openOldKey(keyId) {
+  const panel = document.getElementById(`old-key-${keyId}`);
+  if (panel.style.display !== "none") {
+    panel.style.display = "none";
+    return;
+  }
+
+  panel.style.display = "block";
+  panel.innerHTML = `<div class="old-key-panel"><div class="panel-title"><span class="spinner"></span> Loading…</div></div>`;
+
+  try {
+    const data = await api("GET", `/api/keys/${keyId}/backup`);
+    if (!data || !data.has_backup) {
+      panel.innerHTML = `<div class="old-key-panel"><div class="panel-title" style="color:var(--muted)">No old key stored in vault.</div></div>`;
+      return;
+    }
+
+    // Guess a console URL from the key id name
+    let consoleUrl = null;
+    const idLower = keyId.toLowerCase();
+    if (idLower.includes("anthropic")) consoleUrl = ANTHROPIC_CONSOLE;
+    else if (idLower.includes("github"))    consoleUrl = GITHUB_CONSOLE;
+    else if (idLower.includes("openai"))    consoleUrl = OPENAI_CONSOLE;
+    else if (idLower.includes("resend"))    consoleUrl = CONSOLE_URLS.resend;
+    else if (idLower.includes("stripe"))    consoleUrl = CONSOLE_URLS.stripe;
+
+    panel.innerHTML = `
+      <div class="old-key-panel">
+        <div class="panel-title">
+          Old key (backed up before last rotation)
+        </div>
+        <div class="key-preview" id="old-key-preview-${esc(keyId)}">${esc(data.preview)}</div>
+        <div class="old-key-actions">
+          <button class="btn-ghost btn-sm" onclick="copyOldKey('${esc(keyId)}', ${JSON.stringify(data.full_value)})">Copy full key</button>
+          <button class="btn-danger btn-sm" onclick="clearOldKey('${esc(keyId)}')">Clear from vault</button>
+          ${consoleUrl ? `<a class="console-link" href="${esc(consoleUrl)}" target="_blank" rel="noopener">Revoke at console ↗</a>` : ""}
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5">
+          Clearing removes it from the vault only — the key stays active on the service until you revoke it there.
+        </div>
+      </div>`;
+  } catch (e) {
+    panel.innerHTML = `<div class="old-key-panel"><div style="color:var(--red);font-size:12px">Error: ${esc(e.message)}</div></div>`;
+  }
+}
+
+async function copyOldKey(keyId, fullValue) {
+  try {
+    await navigator.clipboard.writeText(fullValue);
+    const preview = document.getElementById(`old-key-preview-${keyId}`);
+    if (preview) {
+      const orig = preview.textContent;
+      preview.textContent = "Copied to clipboard ✓";
+      setTimeout(() => { preview.textContent = orig; }, 1500);
+    }
+  } catch {
+    prompt("Copy this key:", fullValue);
+  }
+}
+
+async function clearOldKey(keyId) {
+  if (!confirm("Remove this old key from the vault?\n\nThe key will remain active on the service — you must revoke it there separately.")) return;
+  try {
+    await api("DELETE", `/api/keys/${keyId}/backup`);
+    document.getElementById(`old-key-${keyId}`).style.display = "none";
+    const btn = document.getElementById(`old-key-btn-${keyId}`);
+    if (btn) btn.style.display = "none";
+  } catch (e) {
+    alert("Failed: " + e.message);
+  }
+}
+
+// ── Onboarding ────────────────────────────────────────────────────────────────
+
+function toggleOnboarding() {
+  document.getElementById("onboarding-panel").style.display = "none";
+  document.getElementById("add-btn").style.display = "";
+}
+
+function showOnboarding() {
+  document.getElementById("onboarding-panel").style.display = "";
+  document.getElementById("add-btn").style.display = "none";
+}
+
+async function parseStack() {
+  const text = document.getElementById("stack-input").value.trim();
+  if (!text) return;
+
+  const status = document.getElementById("parse-status");
+  status.textContent = "Analysing…";
+
+  try {
+    const data = await api("POST", "/api/parse-stack", { text });
+    if (!data) return;
+    status.textContent = `Detected: ${data.detected_services.join(", ") || "nothing recognised"}`;
+    renderSuggestions(data.suggestion);
+  } catch (e) {
+    status.textContent = "Error: " + e.message;
+  }
+}
+
+function renderSuggestions(suggestion) {
+  const container = document.getElementById("suggestions");
+  const { keys = [], manual_keys = [] } = suggestion;
+
+  if (!keys.length && !manual_keys.length) {
+    container.innerHTML = `<p style="margin-top:12px;color:var(--muted);font-size:13px">No supported services detected. Try mentioning service names like "Resend", "Stripe", "GitHub", "Anthropic".</p>`;
+    return;
+  }
+
+  let html = '<div class="suggestion-list">';
+
+  for (const item of keys) {
+    const k = item.config;
+    const storeDesc = (k.stores || []).map(s => `${s.type}${s.path ? ':' + s.path.split('/').pop() : s.project ? ':' + s.project : ''}`).join(", ") || "no stores detected — add manually";
+    html += `
+      <div class="suggestion-card">
+        <div class="suggestion-header">
+          <strong>${esc(k.id)}</strong>
+          <span class="badge auto">✓ automated</span>
+          ${k.schedule ? `<span class="tag schedule">${esc(k.schedule)}</span>` : '<span class="tag">no schedule</span>'}
+        </div>
+        <div style="font-size:12px;color:var(--muted)">Provider: <strong style="color:var(--text)">${esc(k.provider?.type || '—')}</strong> &nbsp;·&nbsp; Stores: ${esc(storeDesc)}</div>
+        ${item.setup_note ? `<div class="suggestion-note">${esc(item.setup_note)}</div>` : ''}
+        <div class="suggestion-actions">
+          <button class="btn-primary btn-sm" onclick='addKey(${JSON.stringify(k).replace(/'/g, "&#39;")})'>Add to config</button>
+        </div>
+      </div>`;
+  }
+
+  for (const item of manual_keys) {
+    const k = item.config;
+    const storeDesc = (k.stores || []).map(s => `${s.type}${s.path ? ':' + s.path.split('/').pop() : s.project ? ':' + s.project : ''}`).join(", ") || "none detected";
+    html += `
+      <div class="suggestion-card">
+        <div class="suggestion-header">
+          <strong>${esc(k.id)}</strong>
+          <span class="badge manual">manual only</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${esc(item.manual_note)}</div>
+        ${storeDesc !== "none detected" ? `<div style="font-size:12px;color:var(--muted)">Stores: ${esc(storeDesc)}</div>` : ""}
+        <div class="suggestion-actions" style="margin-top:10px">
+          <button class="btn-ghost btn-sm" onclick='addKey(${JSON.stringify(k).replace(/'/g, "&#39;")})'>Add as manual key</button>
+          ${item.console_url ? `<a class="console-link" href="${esc(item.console_url)}" target="_blank" rel="noopener">Open console ↗</a>` : ""}
+        </div>
+      </div>`;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+async function addKey(keyConfig) {
+  try {
+    const data = await api("POST", "/api/apply-config", { keys: [keyConfig] });
+    if (!data) return;
+    if (data.added.length) {
+      alert(`Added: ${data.added.join(", ")}\n\nRefreshing keys…`);
+      loadKeys();
+    } else {
+      alert(`${data.skipped.join(", ")} already exists in config.`);
+    }
+  } catch (e) {
+    alert("Failed: " + e.message);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  await loadKeys();
+  await pollScheduler();
+  setInterval(pollScheduler, 15000);
+}
+
+// Check token on load
+if (TOKEN) {
+  api("GET", "/api/keys").then(data => {
+    if (data !== null) {
+      document.getElementById("auth-overlay").classList.add("hidden");
+      init();
+    } else {
+      showAuth();
+    }
+  }).catch(() => showAuth());
+} else {
+  showAuth();
+}
+
+// PWA service worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js");
+}
+</script>
+</body>
+</html>

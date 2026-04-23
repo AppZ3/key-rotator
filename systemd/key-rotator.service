@@ -1,0 +1,18 @@
+[Unit]
+Description=API Key Rotator — APScheduler daemon
+After=network-online.target graphical-session.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/key-rotator run-scheduler
+Restart=on-failure
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

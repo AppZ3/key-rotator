@@ -1,0 +1,15 @@
+[Unit]
+Description=Key Rotator PWA server
+After=network.target key-rotator.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/key-rotator serve
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
